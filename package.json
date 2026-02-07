@@ -1,0 +1,22 @@
+{
+    "name": "mole-app",
+    "version": "0.1.0",
+    "description": "Electron wrapper for mole.61.com with Chromium 87 support.",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "package": "electron-packager . mole-app --platform=win32 --arch=x64 --out=dist --overwrite --icon=icon_256x256.ico"
+    },
+    "author": "Purestone",
+    "contributors": [
+        "violet (taomee)"
+    ],
+    "license": "MIT",
+    "devDependencies": {
+        "electron": "^11.5.0",
+        "electron-packager": "^17.1.2"
+    },
+    "dependencies": {
+        "electron-localshortcut": "^3.2.1"
+    }
+}
