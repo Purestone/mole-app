@@ -1,5 +1,10 @@
 # Mole.app (Electron wrapper) :video_game:
 
+>唱别久悲不成悲  
+>十分红处竟成灰  
+>愿谁记得谁  
+>最好的年岁
+
 Electron shell for <http://mole.61.com/> with PPAPI Flash support, multi-window capability, and a stripped-down UI driven by a DOM cleanup script.
 
 ## What it does :sparkles:
