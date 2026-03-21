@@ -1,7 +1,9 @@
-node_modules
-out
-dist
+node_modules/
+out/
+dist/
 *.log
 npm-debug.log*
 .DS_Store
-plugins
+plugins/
+userData/
+config.json
