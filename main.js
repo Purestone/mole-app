@@ -1,13 +1,16 @@
 const { app, BrowserWindow, Menu } = require('electron');
 const localShortcut = require('electron-localshortcut');
 const path = require('path');
-const domScript = require('./domScript');
+const { getIncognitoPartition, registerIncognitoWindow } = require('./incognito');
+const { DEFAULT_URL, getServersMenu } = require('./servers');
+const Store = require('electron-store');
 
-const START_URL = 'http://mole.61.com/';
+const store = new Store({ cwd: __dirname, defaults: { lastUrl: DEFAULT_URL } });
+
 const WIDTH = 960;
 const HEIGHT = 560;
-const TITLE_BAR_HEIGHT = 26;
-const RESIZABLE = process.platform === 'darwin' ? true : false
+const RESIZABLE = false;
+const WHITE = '#ffffff';
 
 let mainWindow = null;
 
@@ -38,39 +41,56 @@ function configureFlash() {
     }
 
     app.commandLine.appendSwitch('--disable-http-cache');
-    app.commandLine.appendSwitch('force-device-scale-factor', '1');
 }
 
-function createWindow() {
+function createWindow(isIncognito = false) {
+    const webPref = {
+        plugins: true,
+        contextIsolation: false,
+        preload: path.join(__dirname, 'preload.js'),
+        additionalArguments: [`--is-incognito=${isIncognito ? 'true' : 'false'}`]
+    };
+
+    if (isIncognito) {
+        webPref.partition = getIncognitoPartition();
+    }
+
     const win = new BrowserWindow({
         width: WIDTH,
-        height: HEIGHT + TITLE_BAR_HEIGHT,
+        height: HEIGHT,
+        useContentSize: true,
         resizable: RESIZABLE,
-        backgroundColor: '#000000',
+        backgroundColor: WHITE,
         'auto-hide-menu-bar': process.platform !== 'darwin',
-        title: 'Mole.app',
+        title: isIncognito ? 'Mole.app (Incognito)' : 'Mole.app',
         icon: path.join(__dirname, 'icon_256x256.ico'),
-        webPreferences: {
-            plugins: true,
-            contextIsolation: false,
+        webPreferences: webPref
+    });
+
+    if (isIncognito) {
+        registerIncognitoWindow(win);
+    }
+
+    const targetUrl = isIncognito ? DEFAULT_URL : store.get('lastUrl');
+    win.loadURL(targetUrl);
+
+    win.webContents.on('did-navigate', (event, url) => {
+        updateAppMenu(url);
+        if (!isIncognito) store.set('lastUrl', url);
+    });
+
+    win.on('close', () => {
+        if (!isIncognito && win.webContents) {
+            store.set('lastUrl', win.webContents.getURL());
         }
     });
 
-    win.loadURL(START_URL);
-
-    win.webContents.on('did-finish-load', () => {
-        win.webContents.executeJavaScript(domScript);
-    });
-
-    // Block external new windows
     win.webContents.on('new-window', (event, url) => {
-        try {
+        {
             const urlObj = new URL(url);
             if (urlObj.hostname === new URL(START_URL).hostname) {
                 return;
             }
-        } catch (e) {
-            // Invalid URL
         }
         event.preventDefault();
     });
@@ -79,10 +99,12 @@ function createWindow() {
         if (mainWindow === win) {
             mainWindow = null;
         }
+        updateAppMenu(store.get('lastUrl'));
     });
 
     // Register keyboard shortcuts
-    localShortcut.register(win, 'CmdOrCtrl+N', () => createWindow());
+    localShortcut.register(win, 'CmdOrCtrl+N', () => createWindow(false));
+    localShortcut.register(win, 'CmdOrCtrl+Shift+N', () => createWindow(true));
     localShortcut.register(win, 'CmdOrCtrl+Shift+I', () => win.webContents.toggleDevTools());
     localShortcut.register(win, 'F12', () => process.platform !== 'darwin' && win.webContents.toggleDevTools());
     localShortcut.register(win, 'CmdOrCtrl+W', () => win.close());
@@ -95,20 +117,49 @@ function createWindow() {
     return win;
 }
 
-app.on('ready', () => {
-    mainWindow = createWindow();
-
+function updateAppMenu(currentUrl) {
     if (process.platform === 'darwin') {
         const template = Menu.buildFromTemplate([
+            { role: 'appMenu' },
             {
-                label: 'Mole.app',
-                submenu: [{ role: 'quit' }]
-            }
+                label: 'File',
+                submenu: [
+                    {
+                        label: 'New Window',
+                        accelerator: 'CmdOrCtrl+N',
+                        click: () => createWindow(false)
+                    },
+                    {
+                        label: 'New Private Window',
+                        accelerator: 'CmdOrCtrl+Shift+N',
+                        click: () => createWindow(true)
+                    },
+                    { type: 'separator' },
+                    { role: 'close' }
+                ]
+            },
+            { role: 'editMenu' },
+            {
+                label: 'View',
+                submenu: [
+                    { 
+                        role: 'reload', 
+                        enabled: BrowserWindow.getAllWindows().length > 0 
+                    }
+                ]
+            },
+            getServersMenu(currentUrl),
+            { role: 'windowMenu' }
         ]);
         Menu.setApplicationMenu(template);
     } else {
         Menu.setApplicationMenu(null);
     }
+}
+
+app.on('ready', () => {
+    mainWindow = createWindow();
+    updateAppMenu(store.get('lastUrl'));
 });
 
 app.on('activate', () => {
