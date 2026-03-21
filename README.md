@@ -1,54 +1,55 @@
-# Mole.app (Electron wrapper) :video_game:
+# Mole.app :video_game:
 
 >唱别久悲不成悲  
 >十分红处竟成灰  
 >愿谁记得谁  
 >最好的年岁
 
-Electron shell for <http://mole.61.com/> with PPAPI Flash support, multi-window capability, and a stripped-down UI driven by a DOM cleanup script.
+A lightweight Electron shell for playing [Mole's World (摩尔庄园)](http://mole.61.com/) with baked-in PPAPI Flash support, multi-window capability, and a stripped-down UI driven by a DOM cleanup script.
 
 ## What it does :sparkles:
 
-- Loads <http://mole.61.com/> in a fixed-size window.
-- Enables Pepper Flash (PPAPI) via a bundled plugin.
-- Strips the page down to the Flash embed and centers it on a black background.
-- Blocks external window launches (only same host is allowed).
-- Adds keyboard shortcuts for new windows, reload, devtools, zoom reset, and quit.
+- Loads the Mole game client in a fixed-size window (960x560).
+- Enables Pepper Flash (PPAPI) natively via a bundled plugin.
+- Strips the web page down to the core Flash embed and centers it on a black background.
+- Blocks external window launches to keep your gameplay distraction-free.
+- **Incognito Mode:** Supports private windows that clear session data upon closing.
+- **Server Selection:** (macOS Native Menu) Switch seamlessly between Official, Parallel, and Sub-node servers.
+- **Version Selection:** Access various historical game eras including Main, Knight, Christmas, Halloween, Fire Cup, and Taoyuan versions.
+- **State Persistence:** Remembers your last played server and version across app restarts.
+- Useful keyboard shortcuts for reloading, toggling devtools, and managing windows.
 
 ## Requirements :clipboard:
 
 - Node.js 18+ (for dev mode).
-- Windows: PPAPI plugin at plugins/pepflashplayer64_26_0_0_131.dll (already included).
+- macOS: PPAPI plugin located at `plugins/PepperFlashPlayer.plugin`.
 
 ## Getting started :rocket:
 
 1. Install dependencies:
-   - npm install
+
+   ```bash
+   npm install
+   ```
+
 2. Run the app:
-   - npm start
 
-## Packaging (Windows) :package:
-
-- npm run package
-
-This uses electron-packager to build a Windows x64 package into dist/ with icon_256x256.ico.
+   ```bash
+   npm start
+   ```
 
 ## Keyboard shortcuts :keyboard:
 
-- CmdOrCtrl+N: New window
-- CmdOrCtrl+Shift+I: Toggle DevTools
-- F12: Toggle DevTools (Windows/Linux)
-- CmdOrCtrl+W: Close window
-- Alt+F4: Close window (Windows/Linux)
-- CmdOrCtrl+R: Reload
-- F5: Reload (Windows/Linux)
-- CmdOrCtrl+Q: Quit
-- CmdOrCtrl+0: Reset zoom
+- `Cmd+N`: New window
+- `Cmd+Shift+N`: New Incognito window
+- `Cmd+Option+I`: Toggle DevTools
+- `Cmd+W`: Close window
+- `Cmd+R`: Reload
+- `Cmd+Q`: Quit application
 
 ## Notes :warning:
 
-- Flash is deprecated; use only if you trust the source.
-- The window is fixed to 960x560 (plus a small title bar height).
-- Menu bar is hidden on Windows/Linux; macOS keeps a minimal menu.
-- Context isolation is disabled to allow Flash plugins.
-- Electron version is defined in package.json (currently 11.5.0).
+- **Security Warning:** Flash is officially deprecated. This application is intended solely for accessing trusted Mole environments.
+- The window is fixed to 960x560.
+- Uses a macOS native minimal menu providing Server/Version selection.
+- Context isolation is disabled to properly allow Flash plugins to function.

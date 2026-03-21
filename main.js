@@ -105,7 +105,7 @@ function createWindow(isIncognito = false) {
     // Register keyboard shortcuts
     localShortcut.register(win, 'CmdOrCtrl+N', () => createWindow(false));
     localShortcut.register(win, 'CmdOrCtrl+Shift+N', () => createWindow(true));
-    localShortcut.register(win, 'CmdOrCtrl+Shift+I', () => win.webContents.toggleDevTools());
+    localShortcut.register(win, process.platform === 'darwin' ? 'Cmd+Option+I' : 'CmdOrCtrl+Shift+I', () => win.webContents.toggleDevTools());
     localShortcut.register(win, 'F12', () => process.platform !== 'darwin' && win.webContents.toggleDevTools());
     localShortcut.register(win, 'CmdOrCtrl+W', () => win.close());
     localShortcut.register(win, 'Alt+F4', () => process.platform !== 'darwin' && win.close());
@@ -113,7 +113,7 @@ function createWindow(isIncognito = false) {
     localShortcut.register(win, 'F5', () => process.platform !== 'darwin' && win.webContents.reload());
     localShortcut.register(win, 'CmdOrCtrl+Q', () => app.quit());
     localShortcut.register(win, 'CmdOrCtrl+0', () => win.webContents.setZoomFactor(1));
-
+    
     return win;
 }
 
