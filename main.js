@@ -9,7 +9,7 @@ const { getIncognitoPartition, registerIncognitoWindow } = require('./incognito'
 const { DEFAULT_URL, getServersMenu } = require('./servers');
 const Store = require('electron-store');
 
-const store = new Store({ cwd: __dirname, defaults: { lastUrl: DEFAULT_URL } });
+const store = new Store({ cwd: __dirname, defaults: { lastUrl: DEFAULT_URL, isMuted: false } });
 
 const WIDTH = 960;
 const HEIGHT = 560;
@@ -74,6 +74,8 @@ function createWindow(isIncognito = false) {
     if (isIncognito) {
         registerIncognitoWindow(win);
     }
+
+    win.webContents.setAudioMuted(store.get('isMuted'));
 
     const targetUrl = isIncognito ? DEFAULT_URL : store.get('lastUrl');
     win.loadURL(targetUrl);
@@ -181,6 +183,23 @@ function updateAppMenu(currentUrl) {
                     { 
                         role: 'reload', 
                         enabled: BrowserWindow.getAllWindows().length > 0 
+                    }
+                ]
+            },
+            {
+                label: 'Audio',
+                submenu: [
+                    {
+                        label: 'Mute all',
+                        type: 'checkbox',
+                        checked: store.get('isMuted'),
+                        click: (menuItem) => {
+                            const isMuted = menuItem.checked;
+                            store.set('isMuted', isMuted);
+                            BrowserWindow.getAllWindows().forEach(w => {
+                                w.webContents.setAudioMuted(isMuted);
+                            });
+                        }
                     }
                 ]
             },
