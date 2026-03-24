@@ -6,7 +6,7 @@ const path = require('path');
 app.setPath('userData', path.join(__dirname, 'userData'));
 
 const { getIncognitoPartition, registerIncognitoWindow } = require('./incognito');
-const { DEFAULT_URL, getServersMenu } = require('./servers');
+const { DEFAULT_URL, getServersMenu, SERVERS } = require('./servers');
 const Store = require('electron-store');
 
 const store = new Store({ cwd: __dirname, defaults: { lastUrl: DEFAULT_URL, isMuted: false } });
@@ -92,11 +92,16 @@ function createWindow(isIncognito = false) {
     });
 
     win.webContents.on('new-window', (event, url) => {
-        {
+        try {
             const urlObj = new URL(url);
-            if (urlObj.hostname === new URL(START_URL).hostname) {
+            const isMatch = SERVERS.some(server => {
+                return urlObj.hostname === new URL(server.baseUrl).hostname;
+            });
+            if (isMatch) {
                 return;
             }
+        } catch (e) {
+            // Ignore invalid URLs
         }
         event.preventDefault();
     });
