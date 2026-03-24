@@ -21,6 +21,10 @@ let mainWindow = null;
 configureFlash();
 
 function configureFlash() {
+    if (process.platform !== 'darwin') {
+        app.disableHardwareAcceleration();
+    }
+
     let pluginName;
     let pluginVersion;
 
@@ -124,7 +128,7 @@ function createWindow(isIncognito = false) {
     localShortcut.register(win, 'F5', () => process.platform !== 'darwin' && win.webContents.reload());
     localShortcut.register(win, 'CmdOrCtrl+Q', () => app.quit());
     localShortcut.register(win, 'CmdOrCtrl+0', () => win.webContents.setZoomFactor(1));
-    
+
     return win;
 }
 
@@ -142,11 +146,11 @@ function updateAppMenu(currentUrl) {
                             const { session, app } = require('electron');
                             const fs = require('fs');
                             const path = require('path');
-                            
+
                             // 1. Clear Electron session cookies and cache
                             await session.defaultSession.clearStorageData();
                             await session.defaultSession.clearCache();
-                            
+
                             // 2. Clear Flash Cookies (SharedObjects) by deleting the Pepper Data folder
                             const pepperDataPath = path.join(app.getPath('userData'), 'Pepper Data');
                             if (fs.existsSync(pepperDataPath)) {
@@ -185,9 +189,9 @@ function updateAppMenu(currentUrl) {
             {
                 label: 'View',
                 submenu: [
-                    { 
-                        role: 'reload', 
-                        enabled: BrowserWindow.getAllWindows().length > 0 
+                    {
+                        role: 'reload',
+                        enabled: BrowserWindow.getAllWindows().length > 0
                     }
                 ]
             },
