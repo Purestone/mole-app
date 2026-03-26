@@ -1,15 +1,12 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, session } = require('electron');
 const localShortcut = require('electron-localshortcut');
 const path = require('path');
-
-// Set userData to a 'userData' folder in the current project root for true portability
-app.setPath('userData', path.join(__dirname, 'userData'));
+const fs = require('fs');
+const Store = require('electron-store');
 
 const { getIncognitoPartition, registerIncognitoWindow } = require('./incognito');
 const { DEFAULT_URL, getServersMenu, SERVERS } = require('./servers');
-const Store = require('electron-store');
-
-const store = new Store({ cwd: __dirname, defaults: { lastUrl: DEFAULT_URL, isMuted: false } });
+const store = new Store({ defaults: { lastUrl: DEFAULT_URL, isMuted: false } });
 
 const WIDTH = 960;
 const HEIGHT = 560;
@@ -132,6 +129,22 @@ function createWindow(isIncognito = false) {
     return win;
 }
 
+async function clearAppData() {
+    // 1. Clear Electron session data and cache
+    await session.defaultSession.clearStorageData();
+    await session.defaultSession.clearCache();
+
+    // 2. Clear Flash SharedObjects (Pepper Data)
+    const pepperDataPath = path.join(app.getPath('userData'), 'Pepper Data');
+    if (fs.existsSync(pepperDataPath)) {
+        try {
+            fs.rmdirSync(pepperDataPath, { recursive: true });
+        } catch (err) {
+            console.error('Failed to clear Pepper Data:', err);
+        }
+    }
+}
+
 function updateAppMenu(currentUrl) {
     if (process.platform === 'darwin') {
         const template = Menu.buildFromTemplate([
@@ -142,21 +155,7 @@ function updateAppMenu(currentUrl) {
                     { type: 'separator' },
                     {
                         label: 'Clear Cookies',
-                        click: async () => {
-                            const { session, app } = require('electron');
-                            const fs = require('fs');
-                            const path = require('path');
-
-                            // 1. Clear Electron session cookies and cache
-                            await session.defaultSession.clearStorageData();
-                            await session.defaultSession.clearCache();
-
-                            // 2. Clear Flash Cookies (SharedObjects) by deleting the Pepper Data folder
-                            const pepperDataPath = path.join(app.getPath('userData'), 'Pepper Data');
-                            if (fs.existsSync(pepperDataPath)) {
-                                fs.rmSync(pepperDataPath, { recursive: true, force: true });
-                            }
-                        }
+                        click: clearAppData
                     },
                     { type: 'separator' },
                     { role: 'services' },
