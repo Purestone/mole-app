@@ -1,5 +1,3 @@
-const { BrowserWindow } = require('electron');
-
 const SERVERS = [
     { title: '官服', baseUrl: 'http://mole.61.com/', versionsAll: false },
     { title: '平行服', baseUrl: 'https://mole.61player.com/', versionsAll: true },
@@ -16,42 +14,41 @@ const VERSIONS = [
     { title: '桃源版', suffix: 'moleverse/taoyuan/' }
 ];
 
-const DEFAULT_URL = SERVERS[0].baseUrl; // 第一次运行默认官服
+const DEFAULT_SERVER = 0;
+const DEFAULT_VERSION = 0;
 
-function normalize(url) {
-    return url.replace(/\/$/, '');
+function getUrl(serverIndex, versionIndex) {
+    const server = SERVERS[serverIndex];
+    if (!server) return null;
+    const versions = server.versionsAll ? VERSIONS : [VERSIONS[0]];
+    const vIdx = server.versionsAll ? versionIndex : 0;
+    const v = versions[vIdx] || versions[0];
+    return server.baseUrl + v.suffix;
 }
 
-function loadUrl(url) {
-    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
-    if (win) win.loadURL(url);
-}
-
-function getServersMenu(currentUrl) {
+function getServersMenu(currentSIdx, currentVIdx, onSelect) {
     return {
         label: 'Servers',
-        submenu: SERVERS.map(server => {
+        submenu: SERVERS.map((server, sIdx) => {
             const versions = server.versionsAll ? VERSIONS : [VERSIONS[0]];
 
             if (versions.length === 1) {
-                const fullUrl = server.baseUrl + versions[0].suffix;
                 return {
                     label: server.title,
                     type: 'checkbox',
-                    checked: normalize(currentUrl) === normalize(fullUrl),
-                    click: () => loadUrl(fullUrl)
+                    checked: currentSIdx === sIdx,
+                    click: () => onSelect(sIdx, 0)
                 };
             }
 
             return {
                 label: server.title,
-                submenu: versions.map(v => {
-                    const fullUrl = server.baseUrl + v.suffix;
+                submenu: versions.map((v, vIdx) => {
                     return {
                         label: v.title,
                         type: 'checkbox',
-                        checked: normalize(currentUrl) === normalize(fullUrl),
-                        click: () => loadUrl(fullUrl)
+                        checked: currentSIdx === sIdx && currentVIdx === vIdx,
+                        click: () => onSelect(sIdx, vIdx)
                     };
                 })
             };
@@ -59,4 +56,17 @@ function getServersMenu(currentUrl) {
     };
 }
 
-module.exports = { SERVERS, VERSIONS, DEFAULT_URL, getServersMenu };
+function matchUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    const normalizedUrl = url.replace(/\/$/, '');
+    for (let sIdx = 0; sIdx < SERVERS.length; sIdx++) {
+        const server = SERVERS[sIdx];
+        const serverBase = server.baseUrl.replace(/\/$/, '');
+        if (normalizedUrl.startsWith(serverBase)) {
+            return { sIdx, vIdx: 0 };
+        }
+    }
+    return null;
+}
+
+module.exports = { SERVERS, VERSIONS, DEFAULT_SERVER, DEFAULT_VERSION, getUrl, getServersMenu, matchUrl };

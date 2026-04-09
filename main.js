@@ -5,8 +5,8 @@ const fs = require('fs');
 const Store = require('electron-store');
 
 const { getIncognitoPartition, registerIncognitoWindow } = require('./incognito');
-const { DEFAULT_URL, getServersMenu, SERVERS } = require('./servers');
-const store = new Store({ defaults: { lastUrl: DEFAULT_URL, isMuted: false } });
+const { DEFAULT_SERVER, DEFAULT_VERSION, getUrl, getServersMenu, matchUrl, SERVERS } = require('./servers');
+const store = new Store({ defaults: { serverIndex: DEFAULT_SERVER, versionIndex: DEFAULT_VERSION, isMuted: true } });
 
 const WIDTH = 960;
 const HEIGHT = 560;
@@ -14,6 +14,30 @@ const RESIZABLE = false;
 const WHITE = '#ffffff';
 
 let mainWindow = null;
+
+// Debounce helper: prevents double-trigger when both menu accelerator
+// and localShortcut fire for the same key (Flash hijacks keyboard focus).
+function debounceAction(fn, delay = 100) {
+    let lastCall = 0;
+    return (...args) => {
+        const now = Date.now();
+        if (now - lastCall < delay) return;
+        lastCall = now;
+        fn(...args);
+    };
+}
+
+const dNewWindow = debounceAction(() => createWindow(false));
+const dNewPrivateWindow = debounceAction(() => createWindow(true));
+const dReload = debounceAction(() => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.webContents.reload();
+});
+const dCloseWindow = debounceAction(() => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.close();
+});
+const dQuit = debounceAction(() => app.quit());
 
 configureFlash();
 
@@ -78,52 +102,40 @@ function createWindow(isIncognito = false) {
 
     win.webContents.setAudioMuted(store.get('isMuted'));
 
-    const targetUrl = isIncognito ? DEFAULT_URL : store.get('lastUrl');
+    const sIdx = isIncognito ? DEFAULT_SERVER : store.get('serverIndex');
+    const vIdx = isIncognito ? DEFAULT_VERSION : store.get('versionIndex');
+    const targetUrl = getUrl(sIdx, vIdx);
     win.loadURL(targetUrl);
 
     win.webContents.on('did-navigate', (event, url) => {
-        updateAppMenu(url);
-        if (!isIncognito) store.set('lastUrl', url);
-    });
-
-    win.on('close', () => {
-        if (!isIncognito && win.webContents) {
-            store.set('lastUrl', win.webContents.getURL());
-        }
+        updateAppMenu();
     });
 
     win.webContents.on('new-window', (event, url) => {
-        try {
-            const urlObj = new URL(url);
-            const isMatch = SERVERS.some(server => {
-                return urlObj.hostname === new URL(server.baseUrl).hostname;
-            });
-            if (isMatch) {
-                return;
-            }
-        } catch (e) {
-            // Ignore invalid URLs
+        if (!matchUrl(url)) {
+            event.preventDefault();
         }
-        event.preventDefault();
     });
 
     win.on('closed', () => {
         if (mainWindow === win) {
             mainWindow = null;
         }
-        updateAppMenu(store.get('lastUrl'));
+        updateAppMenu();
     });
 
-    // Register keyboard shortcuts
-    localShortcut.register(win, 'CmdOrCtrl+N', () => createWindow(false));
-    localShortcut.register(win, 'CmdOrCtrl+Shift+N', () => createWindow(true));
+    // Register keyboard shortcuts via localShortcut to punch through Flash.
+    // Menu accelerators serve as display hints + fallback; debounce prevents double-fire.
+    localShortcut.unregisterAll(win);
+    localShortcut.register(win, 'CmdOrCtrl+N', dNewWindow);
+    localShortcut.register(win, 'CmdOrCtrl+Shift+N', dNewPrivateWindow);
+    localShortcut.register(win, 'CmdOrCtrl+R', dReload);
+    localShortcut.register(win, 'CmdOrCtrl+W', dCloseWindow);
+    localShortcut.register(win, 'CmdOrCtrl+Q', dQuit);
     localShortcut.register(win, process.platform === 'darwin' ? 'Cmd+Option+I' : 'CmdOrCtrl+Shift+I', () => win.webContents.toggleDevTools());
     localShortcut.register(win, 'F12', () => process.platform !== 'darwin' && win.webContents.toggleDevTools());
-    localShortcut.register(win, 'CmdOrCtrl+W', () => win.close());
-    localShortcut.register(win, 'Alt+F4', () => process.platform !== 'darwin' && win.close());
-    localShortcut.register(win, 'CmdOrCtrl+R', () => win.webContents.reload());
     localShortcut.register(win, 'F5', () => process.platform !== 'darwin' && win.webContents.reload());
-    localShortcut.register(win, 'CmdOrCtrl+Q', () => app.quit());
+    localShortcut.register(win, 'Alt+F4', () => process.platform !== 'darwin' && win.close());
     localShortcut.register(win, 'CmdOrCtrl+0', () => win.webContents.setZoomFactor(1));
 
     return win;
@@ -145,8 +157,11 @@ async function clearAppData() {
     }
 }
 
-function updateAppMenu(currentUrl) {
+function updateAppMenu() {
     if (process.platform === 'darwin') {
+        const sIdx = store.get('serverIndex');
+        const vIdx = store.get('versionIndex');
+
         const template = Menu.buildFromTemplate([
             {
                 label: app.name,
@@ -173,15 +188,19 @@ function updateAppMenu(currentUrl) {
                     {
                         label: 'New Window',
                         accelerator: 'CmdOrCtrl+N',
-                        click: () => createWindow(false)
+                        click: dNewWindow
                     },
                     {
                         label: 'New Private Window',
                         accelerator: 'CmdOrCtrl+Shift+N',
-                        click: () => createWindow(true)
+                        click: dNewPrivateWindow
                     },
                     { type: 'separator' },
-                    { role: 'close' }
+                    {
+                        label: 'Close Window',
+                        accelerator: 'CmdOrCtrl+W',
+                        click: dCloseWindow
+                    }
                 ]
             },
             { role: 'editMenu' },
@@ -211,7 +230,14 @@ function updateAppMenu(currentUrl) {
                     }
                 ]
             },
-            getServersMenu(currentUrl),
+            getServersMenu(sIdx, vIdx, (newSIdx, newVIdx) => {
+                store.set({ serverIndex: newSIdx, versionIndex: newVIdx });
+                const focusedWin = BrowserWindow.getFocusedWindow() || mainWindow;
+                if (focusedWin) {
+                    focusedWin.loadURL(getUrl(newSIdx, newVIdx));
+                }
+                updateAppMenu();
+            }),
             { role: 'windowMenu' }
         ]);
         Menu.setApplicationMenu(template);
@@ -220,13 +246,33 @@ function updateAppMenu(currentUrl) {
     }
 }
 
-app.on('ready', () => {
-    mainWindow = createWindow();
-    updateAppMenu(store.get('lastUrl'));
-});
+// Single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+            const win = windows[0];
+            if (win.isMinimized()) win.restore();
+            win.focus();
+        } else {
+            mainWindow = createWindow();
+        }
+    });
+
+    app.on('ready', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            mainWindow = createWindow();
+        }
+        updateAppMenu();
+    });
+}
 
 app.on('activate', () => {
-    if (mainWindow === null) {
+    if (BrowserWindow.getAllWindows().length === 0) {
         mainWindow = createWindow();
     }
 });
