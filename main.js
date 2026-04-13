@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, session } = require('electron');
+const { app, BrowserWindow, Menu, session, screen } = require('electron');
 const localShortcut = require('electron-localshortcut');
 const path = require('path');
 const fs = require('fs');
@@ -84,7 +84,27 @@ function createWindow(isIncognito = false) {
         webPref.partition = getIncognitoPartition();
     }
 
+    // Cascading logic: offset new window from the currently focused one
+    const focusedWin = BrowserWindow.getFocusedWindow();
+    let x, y;
+    if (focusedWin) {
+        const bounds = focusedWin.getBounds();
+        const display = screen.getDisplayMatching(bounds);
+        const area = display.workArea;
+
+        x = bounds.x + 30;
+        y = bounds.y + 30;
+
+        // Reset to a default position if cascading goes beyond screen bounds
+        if (x + WIDTH > area.x + area.width || y + HEIGHT > area.y + area.height) {
+            x = area.x + 50;
+            y = area.y + 50;
+        }
+    }
+
     const win = new BrowserWindow({
+        x: x,
+        y: y,
         width: WIDTH,
         height: HEIGHT,
         useContentSize: true,
