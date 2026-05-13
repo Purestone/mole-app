@@ -113,8 +113,7 @@ function createWindow(isIncognito = false) {
         'auto-hide-menu-bar': process.platform !== 'darwin',
         title: isIncognito ? 'Mole.app (Incognito)' : 'Mole.app',
         icon: path.join(__dirname, 'icon_256x256.ico'),
-        webPreferences: webPref,
-        acceptFirstMouse: true
+        webPreferences: webPref
     });
 
     if (isIncognito) {
