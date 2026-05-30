@@ -1,7 +1,7 @@
 {
     "name": "mole",
     "productName": "Mole",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Electron wrapper for mole.61.com with Chromium 87 support.",
     "main": "main.js",
     "scripts": {
