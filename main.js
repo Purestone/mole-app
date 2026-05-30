@@ -12,32 +12,49 @@ const WIDTH = 960;
 const HEIGHT = 560;
 const RESIZABLE = false;
 const WHITE = '#ffffff';
+const NEW_WINDOW_COMMAND_LOCK_MS = 100;
+const CLOSE_WINDOW_COMMAND_LOCK_MS = 100;
 
 let mainWindow = null;
+let isNewWindowCommandLocked = false;
+let lastCloseWindowCommandAt = 0;
 
-// Debounce helper: prevents double-trigger when both menu accelerator
-// and localShortcut fire for the same key (Flash hijacks keyboard focus).
-function debounceAction(fn, delay = 100) {
-    let lastCall = 0;
-    return (...args) => {
-        const now = Date.now();
-        if (now - lastCall < delay) return;
-        lastCall = now;
-        fn(...args);
-    };
+// Command lock: prevents duplicate windows when menu accelerator and
+// localShortcut both receive the same Cmd+N keypress.
+function runNewWindowCommand(isIncognito = false) {
+    if (isNewWindowCommandLocked) return;
+    isNewWindowCommandLocked = true;
+
+    try {
+        createWindow(isIncognito);
+    } catch (err) {
+        isNewWindowCommandLocked = false;
+        throw err;
+    }
+
+    setTimeout(() => {
+        isNewWindowCommandLocked = false;
+    }, NEW_WINDOW_COMMAND_LOCK_MS);
 }
 
-const dNewWindow = debounceAction(() => createWindow(false));
-const dNewPrivateWindow = debounceAction(() => createWindow(true));
-const dReload = debounceAction(() => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) win.webContents.reload();
-});
-const dCloseWindow = debounceAction(() => {
+// Command lock: prevents closing two windows from one Cmd+W keypress.
+function runCloseWindowCommand() {
+    const now = Date.now();
+    if (now - lastCloseWindowCommandAt < CLOSE_WINDOW_COMMAND_LOCK_MS) return;
+    lastCloseWindowCommandAt = now;
+
     const win = BrowserWindow.getFocusedWindow();
     if (win) win.close();
-});
-const dQuit = debounceAction(() => app.quit());
+}
+
+const newWindow = () => runNewWindowCommand(false);
+const newPrivateWindow = () => runNewWindowCommand(true);
+const reloadWindow = () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.webContents.reload();
+};
+const closeWindow = () => runCloseWindowCommand();
+const quitApp = () => app.quit();
 
 configureFlash();
 
@@ -145,13 +162,13 @@ function createWindow(isIncognito = false) {
     });
 
     // Register keyboard shortcuts via localShortcut to punch through Flash.
-    // Menu accelerators serve as display hints + fallback; debounce prevents double-fire.
+    // Menu accelerators serve as display hints + fallback; command lock prevents double-fire.
     localShortcut.unregisterAll(win);
-    localShortcut.register(win, 'CmdOrCtrl+N', dNewWindow);
-    localShortcut.register(win, 'CmdOrCtrl+Shift+N', dNewPrivateWindow);
-    localShortcut.register(win, 'CmdOrCtrl+R', dReload);
-    localShortcut.register(win, 'CmdOrCtrl+W', dCloseWindow);
-    localShortcut.register(win, 'CmdOrCtrl+Q', dQuit);
+    localShortcut.register(win, 'CmdOrCtrl+N', newWindow);
+    localShortcut.register(win, 'CmdOrCtrl+Shift+N', newPrivateWindow);
+    localShortcut.register(win, 'CmdOrCtrl+R', reloadWindow);
+    localShortcut.register(win, 'CmdOrCtrl+W', closeWindow);
+    localShortcut.register(win, 'CmdOrCtrl+Q', quitApp);
     localShortcut.register(win, process.platform === 'darwin' ? 'Cmd+Option+I' : 'CmdOrCtrl+Shift+I', () => win.webContents.toggleDevTools());
     localShortcut.register(win, 'F12', () => process.platform !== 'darwin' && win.webContents.toggleDevTools());
     localShortcut.register(win, 'F5', () => process.platform !== 'darwin' && win.webContents.reload());
@@ -208,18 +225,18 @@ function updateAppMenu() {
                     {
                         label: 'New Window',
                         accelerator: 'CmdOrCtrl+N',
-                        click: dNewWindow
+                        click: newWindow
                     },
                     {
                         label: 'New Private Window',
                         accelerator: 'CmdOrCtrl+Shift+N',
-                        click: dNewPrivateWindow
+                        click: newPrivateWindow
                     },
                     { type: 'separator' },
                     {
                         label: 'Close Window',
                         accelerator: 'CmdOrCtrl+W',
-                        click: dCloseWindow
+                        click: closeWindow
                     }
                 ]
             },
